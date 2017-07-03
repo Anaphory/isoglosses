@@ -2,31 +2,37 @@
 
 """Simulate isoglosses-based language evolution forward in time"""
 
+import itertools as it
+
 import networkx
+import networkx.bipartite as bipartite
+
 
 def is_planar(G):
+    """Check whether the graph G is planar
+
+    Thes function checks if graph G has K(5) or K(3,3) as minors,
+    returns True/False on planarity and the first nodes encountered
+    that violate it, if any.
+
     """
-    function checks if graph G has K(5) or K(3,3) as minors,
-    returns True /False on planarity and nodes of "bad_minor"
-    """
-    result=True
-    bad_minor=[]
-    n=len(G.nodes())
-    if n>5:
-        for subnodes in it.combinations(G.nodes(),6):
-            subG=G.subgraph(subnodes)
-            if bipartite.is_bipartite(G):# check if the graph G has a subgraph K(3,3)
+    n = len(G.nodes())
+    if n > 5:
+        for subnodes in it.combinations(G.nodes(), 6):
+            sub_graph = G.subgraph(subnodes)
+            # check if the graph G has a subgraph K(3,3)
+            if bipartite.is_bipartite(G):
                 X, Y = bipartite.sets(G)
-                if len(X)==3:
-                    result=False
-                    bad_minor=subnodes
-    if n>4 and result:
-        for subnodes in it.combinations(G.nodes(),5):
-            subG=G.subgraph(subnodes)
-            if len(subG.edges())==10:# check if the graph G has a subgraph K(5)
-                result=False
-                bad_minor=subnodes
-    return result,bad_minor
+                if len(X) == 3:
+                    return False, subnodes
+    if n > 4:
+        for subnodes in it.combinations(G.nodes(), 5):
+            sub_graph = G.subgraph(subnodes)
+            # check if the graph G has a subgraph K(5)
+            if len(sub_graph.edges()) == 10:
+                return False, subnodes
+    return True, []
+
 
 """
 1 maximal planar graph
