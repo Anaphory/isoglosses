@@ -1,0 +1,53 @@
+* [X] Simulation
+Write a function that generates “Cognate set lists” (abstractly,
+without the actual cognate forms) based on:
+
+** a (maximal) planar graph
+*** for each meaning:
+**** set of isoglosses, each having a date, center (in the graph) and radius
+** The distribution of isogloss sizes/isogloss shapes depends on time depth.
+Currently waiting time is not time-dependent – is this good, considering the language fracturization?
+
+* [ ] Simulation Reflection
+** [ ] Think about implications of the distributions involved: are they realistic?
+*** [ ] In particular, Waiting Time
+Should the expected waiting time between two isogloss leveling events be constant?
+
+**** [ ] Implement guess
+We guess it should be such that there is a constant amount of change in time for each language.
+
+* [ ] Testing
+Test the isogloss simulation based on real-life language data. For this,
+** [ ] Data Type
+Find a language or – even better – related group of languages with
+extensive dialectal data (where we can observe intersecting
+isoglosses) and historical, dated etymological data.
+** [ ] Prepare concepts
+List (old and recent) concepts that have cognate
+information available for many of the dialects considered.
+
+Filter to those where first attestation times are available,
+preferably explicitly, for those cognate set/meaning pairs.
+** [ ] Language distance
+From the concept list obtained in the previous step, calculate language distances between all the lects.
+** [ ] Reconstruct isoglosses
+For each isogloss in the resulting data, construct the convex hull (in
+the space given by the language distances).
+
+Extract dating information in isoglosses per year, and in isogloss
+radius depending on time depth.
+** [ ] Simulate data
+With the rate information and language distances generated above,
+simulate word lists.
+** [ ] Compare
+Eyeball, calculate means & stdeviations, calculate likelihoods of real-data under reasonable distributions.
+
+** [ ] Calibrate
+For any parameters well-reflected in simulation results, calibrate them based on real-life data.
+
+(Part of this is already mentioned in "Simulate Data")
+* Implement isogloss stack likelihoods
+** Investigate the effects of invisible isoglosses
+* Check whether inference can use likelihoods to recover isoglosses
+* Add steps to also infer other parameters
+* Have Bayesian inference of isoglosses!!

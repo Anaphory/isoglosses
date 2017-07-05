@@ -6,7 +6,9 @@ import itertools as it
 import collections
 
 import networkx
+import scipy.spatial as spt
 
+import matplotlib.pyplot as plt
 
 def is_planar(G):
     """Check whether the graph G is planar
@@ -34,33 +36,29 @@ def is_planar(G):
     return True, []
 
 
-""" Write a function that generates “Cognate set lists” (abstractly,
-without the actual cognate forms) based on:
-
-1 maximal planar graph
-for each meaning:
-[  set of isoglosses
-    planar convex subgraph
-    date
-]
-  rate of isoglosses
-distribution of isogloss sizes/isogloss shapes depending on time depth.
-  First idea: Time depth here is relative to the age of the oldest non-trivial isogloss
-for each language (node in planar graph)
-
-Once that is a thing:
-
-Following steps:
-(1) Run some simulations to see whether they look reasonable
-(2) Compare simulation results with real data, try to calibrate
-(3) Implement isogloss stack likelihoods
-(3a) Investigate the effects of invisible isoglosses
-(4) Check whether inference can use likelihoods to recover isoglosses
-(5) Add steps to also infer other parameters
-(6) Infer isoglosses
-"""
 
 import numpy
+
+def expected_number_of_languages_in_isogloss(time_from_origin,
+                                             number_nodes_in_graph):
+    """Calculate the expected number of languages in an isogloss"""
+    # c is chosen such that expected_number_of_languages_in_isogloss
+    # for time_from_origin==1 should be 1
+    c = -numpy.log(1/number_nodes_in_graph)
+
+    return (
+        number_nodes_in_graph * numpy.exp(-c * time_from_origin))
+
+
+def expected_radius_of_isogloss(time_from_origin, graph_diameter=1):
+    """Calculate the expected number of languages in an isogloss"""
+    # Half life of social influence $t$ to be taken from social
+    # psychology literature
+    t = 30
+
+    return (
+        graph_diameter * numpy.exp(-time_from_origin/t * numpy.log(2)))
+
 
 def generate_isogloss_size(number_nodes_in_graph, time_from_origin):
     """Draw a random isogloss size compatible with the current time.
@@ -76,15 +74,10 @@ def generate_isogloss_size(number_nodes_in_graph, time_from_origin):
     as maximum.
 
     """
-    # c is chosen such that expected_number_of_languages_in_isogloss
-    # for time_from_origin==1 should be 1
-    c = -numpy.log(1/number_nodes_in_graph)
-    
-    expected_number_of_languages_in_isogloss = (
-        number_nodes_in_graph * numpy.exp(-c * time_from_origin))
+    p = (expected_number_of_languages_in_isogloss(
+        time_from_origin, number_nodes_in_graph)
+         / number_nodes_in_graph)
 
-    p = expected_number_of_languages_in_isogloss/number_nodes_in_graph
-    
     return numpy.random.binomial(number_nodes_in_graph, p)
 
 def test_isogloss_sizes_end():
@@ -132,11 +125,62 @@ def random_subgraph_of_given_size(graph, size):
             return nodebunch
 
 
-g = networkx.Graph([
-        (0, 1), (0, 2), (0, 3), (0, 4),
-        (1, 2), (1, 3), (1, 4), (2, 3), (3, 4),
-        (5, 0), (5, 1), (5, 2)])
+def random_disk_of_given_radius(graph, radius):
+    """Generate a random disk subgraph of the connected graph of given size
 
+    “Disk” here means that we always add the node that is closest to
+    the nodes already included.
+
+    """
+    nodes = graph.nodes()
+    random_index = numpy.random.randint(len(nodes))
+    center = nodes[random_index]
+    distances = {center: 0}
+    while True:
+        adjacent_nodes = list(neighbors(graph, distances))
+        target = None
+        target_distance = numpy.inf
+        for node in adjacent_nodes:
+            distance = numpy.inf
+            for edge_to, edge_properties in graph[node].items():
+                # edge is a dictionary mapping a neighbor to a dict of edge properties
+                if edge_to in distances:
+                    via_distance = (distances[edge_to]
+                                    + edge_properties.get(
+                                        "length", numpy.random.random() * 2))
+                    if via_distance < distance:
+                        distance = via_distance
+            if distance < target_distance:
+                target = node
+                target_distance = distance
+        if target_distance > radius:
+            break
+        distances[target] = target_distance
+    return distances
+
+
+g_small = networkx.Graph([
+    (0, 1), (0, 2), (0, 3), (0, 4),
+    (1, 2), (1, 3), (1, 4), (2, 3), (3, 4),
+    (5, 0), (5, 1), (5, 2)])
+
+def delaunay_graph(n):
+    xy = numpy.random.random(size=(n, 2))
+    d = spt.Delaunay(xy)
+    g = networkx.Graph()
+    for p1, p2, p3 in d.simplices:
+        g.add_edge(p1, p2, {"length": spt.distance.euclidean(xy[p1], xy[p2])})
+        g.add_edge(p1, p3, {"length": spt.distance.euclidean(xy[p1], xy[p3])})
+        g.add_edge(p2, p3, {"length": spt.distance.euclidean(xy[p2], xy[p3])})
+    return g, xy
+
+try:
+    g
+except:
+    g, xy = delaunay_graph(100)
+    plt.axis('equal')
+    networkx.draw_networkx(g, pos=xy, with_labels=True, node_color="y")
+    plt.show(block=False)
 
 def test_random_subgraphs():
     counter = collections.Counter()
@@ -147,21 +191,71 @@ def test_random_subgraphs():
     print(counter)
 
 
+def test_random_disk():
+    counter = collections.Counter()
+    for _ in range(1000):
+        nodes = random_disk_of_given_radius(g, numpy.random.random())
+        for node in nodes:
+            counter[node] += 1
+    print(counter.most_common())
+
+
 def test_neighbors():
     assert neighbors(g, [3, 4]) == {0, 1, 2}
 
 
-def single_meaning_simulation(graph, meaning_rate=10):
+def diameter(graph):
+    """Calculate the diameter of the graph.
+
+    Edge lengths are assumed to be in the 'length' attribute.
+    """
+    max_l = 0
+    for e in networkx.shortest_path_length(graph, weight='length').values():
+        max_l = max(max_l, *e.values())
+    return max_l
+
+
+def single_meaning_simulation(graph, meaning_rate=10, t_max=100):
     meanings = {node: 0 for node in graph}
     next_isogloss = 1
     t = 0
-    while t < 1:
+
+    history = []
+    
+    while True:
         next_time_step = numpy.random.exponential(1/meaning_rate)
         t += next_time_step
-        size = generate_isogloss_size(len(g), t)
-        isogloss = random_subgraph_of_given_size(graph, size)
+        if t > t_max:
+            break
+        # Mean of the `power(α)` distribution is α/(α+1). So, to get
+        # mean e = expected_radius_of_isogloss for α=2:
+        e = expected_radius_of_isogloss(t, diameter(graph))
+        radius = numpy.random.power(2) * e * 1.5
+        isogloss = random_disk_of_given_radius(graph, radius)
         for node in isogloss:
             meanings[node] = next_isogloss
+            if isogloss[node] == 0:
+                center = node
         next_isogloss += 1
-        print(t, isogloss)
-    return meanings
+        history.append((t, isogloss, center))
+    return meanings, history
+
+
+def check_single_meaning_simulation():
+    m, d = single_meaning_simulation(g, 1000)
+
+    old_i = 0
+    for i in numpy.linspace(0, 1, 10):
+        print(sum([len(isogloss) for t, isogloss in d
+        if old_i < t <= i]))
+        old_i = i
+
+        
+def display_history(history, graph):
+    print(" "*6, " ".join(["{:2}".format(node) for node in graph.nodes()]))
+    for time, languages, center in history:
+        binary = " ".join(["{:2}".format("X" if i in languages else " ")
+                           for i in graph.nodes()])
+        print("{:6.3f}".format(time), binary, "{:4d}".format(len(languages)), center)
+
+
