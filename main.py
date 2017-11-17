@@ -132,7 +132,7 @@ def random_disk_of_given_radius(graph, radius):
     the nodes already included.
 
     """
-    nodes = graph.nodes()
+    nodes = list(graph.node)
     random_index = numpy.random.randint(len(nodes))
     center = nodes[random_index]
     distances = {center: 0}
@@ -159,28 +159,16 @@ def random_disk_of_given_radius(graph, radius):
     return distances
 
 
-g_small = networkx.Graph([
-    (0, 1), (0, 2), (0, 3), (0, 4),
-    (1, 2), (1, 3), (1, 4), (2, 3), (3, 4),
-    (5, 0), (5, 1), (5, 2)])
-
 def delaunay_graph(n):
-    xy = numpy.random.random(size=(n, 2))
+    xy = numpy.random.normal(size=(n, 2))
     d = spt.Delaunay(xy)
     g = networkx.Graph()
     for p1, p2, p3 in d.simplices:
-        g.add_edge(p1, p2, {"length": spt.distance.euclidean(xy[p1], xy[p2])})
-        g.add_edge(p1, p3, {"length": spt.distance.euclidean(xy[p1], xy[p3])})
-        g.add_edge(p2, p3, {"length": spt.distance.euclidean(xy[p2], xy[p3])})
+        g.add_edge(p1, p2, length=spt.distance.euclidean(xy[p1], xy[p2]))
+        g.add_edge(p1, p3, length=spt.distance.euclidean(xy[p1], xy[p3]))
+        g.add_edge(p2, p3, length=spt.distance.euclidean(xy[p2], xy[p3]))
     return g, xy
 
-try:
-    g
-except:
-    g, xy = delaunay_graph(100)
-    plt.axis('equal')
-    networkx.draw_networkx(g, pos=xy, with_labels=True, node_color="y")
-    plt.show(block=False)
 
 def test_random_subgraphs():
     counter = collections.Counter()
@@ -210,8 +198,8 @@ def diameter(graph):
     Edge lengths are assumed to be in the 'length' attribute.
     """
     max_l = 0
-    for e in networkx.shortest_path_length(graph, weight='length').values():
-        max_l = max(max_l, *e.values())
+    for source, length_by_target in networkx.shortest_path_length(graph, weight='length'):
+        max_l = max(max_l, *length_by_target.values())
     return max_l
 
 
@@ -221,7 +209,7 @@ def single_meaning_simulation(graph, meaning_rate=10, t_max=100):
     t = 0
 
     history = []
-    
+
     while True:
         next_time_step = numpy.random.exponential(1/meaning_rate)
         t += next_time_step
@@ -250,12 +238,36 @@ def check_single_meaning_simulation():
         if old_i < t <= i]))
         old_i = i
 
-        
+
 def display_history(history, graph):
-    print(" "*6, " ".join(["{:2}".format(node) for node in graph.nodes()]))
+    nodes = sorted(graph.node)
+    print(" "*6, " ".join(["{:2}".format(node) for node in nodes]))
     for time, languages, center in history:
         binary = " ".join(["{:2}".format("X" if i in languages else " ")
-                           for i in graph.nodes()])
+                           for i in nodes])
         print("{:6.3f}".format(time), binary, "{:4d}".format(len(languages)), center)
 
 
+g_small = networkx.Graph([
+    ("A", "B"), ("A", "C"), ("A", "D"), ("A", "E"),
+    ("B", "C"), ("B", "D"), ("B", "E"), ("C", "D"), ("D", "E"),
+    ("F", "A"), ("F", "B"), ("F", "C")])
+
+g_chain = networkx.Graph([
+    (i, i+1) for i in range(20)
+])
+try:
+    g
+except:
+    g, xy = delaunay_graph(20)
+    plt.axis('equal')
+    networkx.draw_networkx(g, pos=xy, with_labels=True, node_color="y")
+    plt.show(block=False)
+
+
+meanings, history = single_meaning_simulation(g)
+display_history(history, g)
+by_form = {}
+for lect, form in meanings.items():
+    by_form.setdefault(form, set()).add(lect)
+print(by_form)
