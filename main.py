@@ -239,12 +239,13 @@ def check_single_meaning_simulation():
         old_i = i
 
 
-def display_history(history, graph):
-    nodes = sorted(graph.node)
-    print(" "*6, " ".join(["{:2}".format(node) for node in nodes]))
+def display_history(history, graph, node_order=None):
+    if node_order is None:
+        node_order = sorted(graph.node)
+    print(" "*6, " ".join(["{:2}".format(node) for node in node_order]))
     for time, languages, center in history:
         binary = " ".join(["{:2}".format("X" if i in languages else " ")
-                           for i in nodes])
+                           for i in node_order])
         print("{:6.3f}".format(time), binary, "{:4d}".format(len(languages)), center)
 
 
@@ -265,8 +266,16 @@ except:
     plt.show(block=False)
 
 
+def sort_centrality(graph):
+    nodes = list(graph.node)
+    distances = {}
+    for source, length_by_target in networkx.shortest_path_length(graph, weight='length'):
+        distances[source] = sum([x**2 for x in length_by_target.values()])
+    return sorted(nodes, key=distances.get)
+
+
 meanings, history = single_meaning_simulation(g)
-display_history(history, g)
+display_history(history, g, node_order=sort_centrality(g))
 by_form = {}
 for lect, form in meanings.items():
     by_form.setdefault(form, set()).add(lect)
