@@ -16,6 +16,105 @@ Should the expected waiting time between two isogloss leveling events be constan
 **** [ ] Implement guess
 We guess it should be such that there is a constant amount of change in time for each language.
 
+**** [ ] Email 2017-07-06
+We were discussing the problems with assessing the distributions for
+isogloss radius and its decay, and at some point you mused about using a
+logistic curve in there somewhere.
+
+Maybe that actually leads to a good solution:
+
+We could just explicitly have population size as an input parameter p(t)
+to the simulation – I know there are some methods to estimate that based
+on various model assumptions, and for the kinds of data we want to look
+at, it should be possible to guess historical data.
+
+Then we make some very simplifying but hopefully not *wrong*
+assumptions: Population density remains constant, the population expands
+in 2D, the relative distances in the graph are constant and the average
+social contact distance remains constant.
+
+Then the effective isogloss radius scales proportional to 1/sqrt(p(t)),
+which for an exponentially growing population is a nice exponential
+decay function and our real-world historical data it gives us another
+data source to add, instead of the arbitrary structure we have so far.
+**** [ ] Email 2017-07-09
+This idea looks good. Did we not have an exponential decay function anyway? But
+in any case, this could indeed provide a more solid footing for our model.
+
+Speaking of population: it occurred to me that the nodes in our network
+typically represent populations of different sizes. This should probably have an
+impact on the direction in which innovations spread: it is more likely that an
+innovation will spread ("downhill") from a large population to a smaller one
+than ("uphill") from a small population to a larger one. Thus (a) we ought to
+generate a "weight" for each node; (b) our graph should be directed, with edges
+going both ways between each pair of nodes; and (c) the weight of each directed
+edge should be proportional to the difference between the population of the tail
+node and the population of the head node.
+
+But perhaps this is getting too complicated; I would be happy to ignore these
+complications for now, and just (as you suggest) use population growth as a way
+of motivating our exponential decay function.
+**** [ ] Email 2017-11-10
+As you mentioned in your e-mail on July 6, we should indeed have population as a
+parameter in our model. In fact, we should have the expected number of
+isoglosses occurring at a given moment of time be a function of population, so
+that the greater the population, the more innovations per unit of time. This
+solves our "waiting time" problem nicely; we have a constant waiting time from
+one "batch" of isoglosses to the next, but the "batch size" keeps increasing.
+
+*** Radius
+> The other arbitrary (or at least not sufficiently explained)
+> distribution we have is the actual radius, given the expected radius.
+> 
+> I don't know about this yet – real world data might give some insight,
+> but until then I would probably just draw from an exponential
+> distribution with mean K/sqrt(p(t)). The question is, what is K?
+
+Yes, I can see the motivation for using an exponential distribution (we start at
+the center, and repeatedly "push outwards", each time with a fixed probability
+of success; the exponential distribution gives us the distribution of how far
+out we are able to push). I think K should be equal to the diameter of the graph
+times the initial population, so that at t = 0, the mean is exactly equal to the
+diameter of the graph. On the other hand, under this condition the likelihood of
+an isogloss at t = 0 covering the whole region would always be about (1 -
+e^(-1)), which is both too arbitrary and too low.
+
+I think the best solution here may simply be to let K be a free parameter (a
+measure of "how quickly populations lose contact with each other").
+
+*** Constructing isoglosses
+I thought of a problem with the way we've been constructing isoglosses (i.e. as "disks"). Consider three dialects A, B and C laid out in a nearly-equilateral triangle; let us assume that the distance from A to C is slightly greater than the distance from A to B or from B to C. Then, under our current model, it would be impossible for an isogloss to contain A and C without also containing B: for if the isogloss is centered on A, and if its radius is greater than the distance from A to C, then the radius must also be greater than the distance from A to B, and hence the isogloss must also contain B. I hope you share my intuition that this is an implausible situation.
+
+The problem, I think, is with the assumption of a constant radius. I think it is more realistic if we allow the isogloss to "grow" to varying extents in various directions. What I mean is the following:
+Start by choosing a center for the isogloss (e.g. A);
+Take the nodes directly connected to A, and decide for each one whether it belongs to the isogloss, on the basis of the radius distribution;
+For each node B_i that was added to the isogloss in the previous step, take all the nodes directly connected to B_i that are not already in the isogloss; decide for each such node C_j whether it belongs to the isogloss, based on the conditional radius distribution (i.e. the likelihood of the isogloss stretching past dist(A,B_i) + dist(B_i,C_j), given that it has already stretched past dist(A,B_i));
+Keep repeating step 3 until no new nodes are added to the isogloss.
+
+Does this sound reasonable?
+
+**** Comments
+Given an isogloss of any shape on our network, it is fairly straightforward to calculate the likelihood of that isogloss occurring for a given population size (we sum the probabilities taking each node in turn as the "center" of the isogloss). Then, once we have a model of population growth, we integrate over time. Having a way of calculating likelihood means that (as a stepping-stone to a Bayesian approach) we can define a maximum-likelihood approach to inferring a planar graph.
+
+*** Calibration
+> Regarding calibration: I have asked around a bit, but I am not sure it will be
+> easy to find a dataset that gives dates for isoglosses and also has decent
+> time-depth. I think, as an approximation, we might need to use estimates of
+> how often languages split up; this should be recoverable from phylogenetic
+> studies. (Or we could even directly estimate frequency of innovations with
+> respect to time, on the basis of a phylogenetic tree or distribution of
+> trees.)
+
+I must admit that the biggest source of hesitation for me in resuming our
+collaboration has been the difficulty of finding a dataset to calibrate our
+method using historically-dated isoglosses. But then I remembered that in
+Bayesian phylogenetic studies, usually only a few of the internal nodes in the
+tree are calibrated against known historical events. Could we not do something
+similar, and only use calibration for a subset of isoglosses? This might at
+least enable us to get something off the ground, while we look for better
+datasets.
+
+
 * [ ] Testing
 Test the isogloss simulation based on real-life language data. For this,
 ** [ ] Data Type
