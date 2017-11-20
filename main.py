@@ -5,6 +5,7 @@
 import itertools as it
 import collections
 
+import numpy
 import networkx
 import scipy.spatial as spt
 
@@ -266,6 +267,25 @@ except:
     plt.show(block=False)
 
 
+def to_nearly_square_array_factory(size):
+    """Create a function that turns a list of length size into a nearly square array.
+
+    Nearly square arrays here means that the first axis is ⌈√s⌉, the second
+    axis is ⌈s/√s⌉. The last few cells will be padded using NaN.
+
+    """
+    axis_one = int(size ** 0.5)
+    if size % axis_one:
+        axis_one += 1
+    axis_two = size // axis_one
+    if size % axis_one:
+        axis_two += 1
+    gaps = [numpy.nan] * (axis_one * axis_two - size)
+    def to_nearly_square_array(l):
+        return numpy.reshape(l + gaps, (axis_one, axis_two))
+    return to_nearly_square_array
+
+
 def sort_centrality(graph):
     nodes = list(graph.node)
     distances = {}
@@ -274,9 +294,31 @@ def sort_centrality(graph):
     return sorted(nodes, key=distances.get)
 
 
-meanings, history = single_meaning_simulation(g)
-display_history(history, g, node_order=sort_centrality(g))
-by_form = {}
-for lect, form in meanings.items():
-    by_form.setdefault(form, set()).add(lect)
-print(by_form)
+plt.figure()
+labels = networkx.draw_networkx_labels(g, pos=xy, with_labels=True, cmap=plt.get_cmap('jet'))
+
+# Simulate meanings
+
+meaning_maps = {node: [] for node in g.node}
+for meaning in range(1, 6**2+1):
+    meanings, history = single_meaning_simulation(g, meaning_rate=1/meaning)
+    display_history(history, g, node_order=sort_centrality(g))
+    isoglosses = sorted(set(meanings.values()))
+    for node in g.node:
+        meaning_maps[node].append(isoglosses.index(meanings[node]))
+
+# Draw edges proportional to overlap
+edges = networkx.draw_networkx_edges(g, pos=xy, with_labels=True, cmap=plt.get_cmap('jet'))
+
+square = to_nearly_square_array_factory(len(meaning_maps[node]))
+ax = plt.gca()
+for node in g.node:
+    pos = xy[node]
+    xx, yy = ax.transData.transform(pos)
+    xa, ya = plt.gcf().transFigure.inverted().transform((xx, yy))
+    a = plt.axes([xa - 0.02, ya - 0.02, 0.04, 0.04])
+    a.axis('off')
+    a.matshow(square(meaning_maps[node]), cmap=plt.get_cmap('tab20'))
+
+# plt.colorbar(nodes)
+plt.show(block=False)
