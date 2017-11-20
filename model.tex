@@ -1,0 +1,88 @@
+% Created 2017-11-20 Mon 15:10
+% Intended LaTeX compiler: pdflatex
+\documentclass[12pt,onecolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{grffile}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{textcomp}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\usepackage[a4paper,top=2cm,bottom=2cm,left=2cm,right=2cm]{geometry}
+\usepackage{amsmath, amsthm, enumitem, fontspec, graphicx, linguex, microtype, realscripts, unicode-math, xcolor}
+\author{Siva Kalyan and Gereon Kaiping}
+\date{\today}
+\title{Isogloss inference}
+\hypersetup{
+ pdfauthor={Siva Kalyan and Gereon Kaiping},
+ pdftitle={Isogloss inference},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 25.2.2 (Org mode 9.1.2)}, 
+ pdflang={English}}
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+
+\section{Goal}
+\label{sec:org8f7cfdc}
+Given character-state (usu.~lexical) data for a set of related languages, we want to able to infer (using either maximum-likelihood or Bayesian methods):
+\begin{enumerate}
+\item the historical network of interaction among the language communities (or among their ancestors);
+\item the shape of the isogloss corresponding to each character-state;
+\item the sequence of isoglosses for each character.
+\end{enumerate}
+
+We would like to model the network of interaction as a \emph{planar graph} (or some subclass thereof), because this seems like a natural way of modeling geographic diffusion. Luckily, there exist efficient algorithms for uniformly sampling the space of planar graphs (or some subclass thereof), e.g.~\texttt{plantri}. We would like the edges to have costs, to simulate natural (or social) boundaries between communities (which may eventually become boundaries of isoglosses).
+
+Each isogloss is necessarily a connected subgraph of the network. It need not be convex.
+\section{What we need}
+\label{sec:org551e8e0}
+\subsection{Model for randomly generating isoglosses}
+\label{sec:org0a797ce}
+Parameters of our model:
+\begin{enumerate}
+\item A planar graph \(G\).
+\item A set of costs \(\{c_i\}\) associated with each edge (where \(0 < c_i < \infty\) for all \(i\)).
+\item A rate \(r\) of population growth.
+\end{enumerate}
+
+The instantaneous rate of isogloss creation is given by \(e^{rt}\) (where \(t\) is time; we scale everything so that \(t \in [0,1]\)).
+
+To generate an isogloss, use the following procedure:\footnote{This is based on the so-called “Independent Cascade Model” (Goldenberg \emph{et al.}~2001, though they never call it that). The other widely-used model of diffusion on networks is the “Linear Threshold Model”; but this looks more complicated.}
+\begin{enumerate}
+\item Pick a node \(v \in V(G)\) at random; this will be the “center” of the isogloss.
+\item For each neighbor \(n\) of \(v\), let \(c(v,n)_{}\) be the cost of the edge going from \(v\) to \(n\). Then the probability of \(n\) joining the isogloss is given by \((e^{-rt})^{c(v,n)}^{}\). Use these probabilities to decide which neighbors get to join the isogloss.
+\item Apply the above step for each neighbor of each newly-added node; and keep going until no new nodes are added.
+\end{enumerate}
+
+The important thing to note is that each isogloss corresponds to a \emph{subtree} of the network, rooted at the language that serves as the “center”.
+\subsection{Formula for estimating likelihood of an isogloss}
+\label{sec:org97dfe6d}
+Suppose we have an isogloss, and we want to estimate (for a given set of parameters of our model) how likely this isogloss is to arise at a given time \(t\). We do the following:
+\begin{enumerate}
+\item Take all spanning trees of the subgraph defined by the isogloss plus all of its immediate neighbors (considering only trees whose root lies within the isogloss). (Note: This may be a huge number of trees, so in practice we’ll have to sample. But there should be good algorithms for uniformly sampling the set of spanning trees of a graph.)
+\item For each spanning tree, multiply the probabilities along all edges inside the isogloss with \(1\) minus the probability of each edge connecting nodes inside and outside the isogloss. (The idea is to calculate the probability that an innovation starting at the root node will diffuse to all the nodes in the isogloss, and \emph{fail} to diffuse any further.) Take the average across all spanning trees.
+\item To compute the time-independent likelihood of the isogloss, do the above for each (uniformly-spaced) value of \(t\), and take the average.
+\end{enumerate}
+\subsection{Formula for estimating likelihood of a partially indeterminate isogloss}
+\label{sec:org51f8765}
+Take every possible “resolution” of the isogloss, and compute the likelihood as above. Take the average.
+\subsection{Method for enumerating/sampling from the possible sequences of isoglosses that might give rise to an observed distribution of character states}
+\label{sec:org22e00d0}
+Once we have this, we can compute the likelihood of the observed distribution of states for a given character. Then it’s a short step to implementing maximum-likelihood and Bayesian methods.
+
+Randomly order the character states, and randomly partition \([0,1]\) into the same number of disjoint intervals. For each character state, if a later character state affects neighboring nodes, then these neighboring nodes should have blanks instead of zeros (since they could in principle have formerly belonged to the older isogloss). Once we have made older isoglosses “indeterminate” in this way, we compute the likelihood of each isogloss as above, taking into account the time interval within which we expect the isogloss to arise.
+
+At this point, we’ll want to make the ordering of the states of each character a parameter in our model. I wonder if this is getting too complicated….
+
+Done!
+\end{document}
