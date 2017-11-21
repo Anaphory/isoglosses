@@ -272,7 +272,7 @@ xy_chain = [
 try:
     g
 except:
-    g, xy = delaunay_graph(50)
+    g, xy = delaunay_graph(20)
     plt.axis('equal')
     networkx.draw_networkx(g, pos=xy, with_labels=True, node_color="y")
     plt.show(block=False)
@@ -309,59 +309,62 @@ def distance(language0, language1):
     return (numpy.array(language0) == numpy.array(language1)).sum()/len(language0)
 
 
-plt.figure()
-labels = networkx.draw_networkx_labels(g, pos=xy, with_labels=True, cmap=plt.get_cmap('jet'))
 
-# Simulate meanings
+for t_max in (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000):
+    plt.figure()
+    labels = networkx.draw_networkx_labels(g, pos=xy, with_labels=True, cmap=plt.get_cmap('jet'))
 
-meaning_maps = {node: [] for node in g.node}
-for meaning in sorted(numpy.random.gamma(1, 1, size=64)):
-    meanings, history = single_meaning_simulation(g, meaning_rate=meaning, t_max=50)
-    display_history(history, g, node_order=sort_centrality(g))
-    isoglosses = sorted(set(meanings.values()))
+    # Simulate meanings
+    meaning_maps = {node: [] for node in g.node}
+    for meaning in sorted(numpy.random.gamma(1, 1, size=64)):
+        meanings, history = single_meaning_simulation(g, meaning_rate=meaning, t_max=t_max)
+        display_history(history, g, node_order=sort_centrality(g))
+        isoglosses = sorted(set(meanings.values()))
+        for node in g.node:
+            meaning_maps[node].append(isoglosses.index(meanings[node]))
+
+    # Draw edges proportional to overlap
+    if g == g_chain:
+        for n0, n1 in it.combinations(g, 2):
+            g.add_edge(n0, n1)
+    edge_widths = [5*distance(meaning_maps[node0], meaning_maps[node1])
+                for node0, node1 in g.edges]
+    edges = networkx.draw_networkx_edges(g, pos=xy, with_labels=True,
+                                        width=edge_widths)
+
+    cmap = matplotlib.colors.ListedColormap(
+            [(0, 0, 0.6),
+            (0, 0, 0),
+            (0, 0, 0),
+            (0.5, 0.5, 0.5),
+            (1, 1, 1,),
+            (1, 1, 1,),
+            (1, 1, 0.5)],
+            name='extremes')
+
+    square = to_nearly_square_array_factory(len(meaning_maps[node]))
+    ax = plt.gca()
     for node in g.node:
-        meaning_maps[node].append(isoglosses.index(meanings[node]))
+        pos = xy[node]
+        xx, yy = ax.transData.transform(pos)
+        xa, ya = plt.gcf().transFigure.inverted().transform((xx, yy))
+        a = plt.axes([xa - 0.02, ya - 0.02, 0.04, 0.04])
+        a.axis('off')
+        a.matshow(square(meaning_maps[node]), cmap=cmap)
 
-# Draw edges proportional to overlap
-if g == g_chain:
-    for n0, n1 in it.combinations(g, 2):
-        g.add_edge(n0, n1)
-edge_widths = [5*distance(meaning_maps[node0], meaning_maps[node1])
-               for node0, node1 in g.edges]
-edges = networkx.draw_networkx_edges(g, pos=xy, with_labels=True,
-                                     width=edge_widths)
+    # plt.colorbar(nodes)
+    plt.show(block=False)
 
-cmap = matplotlib.colors.ListedColormap(
-        [(0, 0, 0.6),
-         (0, 0, 0),
-         (0, 0, 0),
-         (0.5, 0.5, 0.5),
-         (1, 1, 1,),
-         (1, 1, 1,),
-         (1, 1, 0.5)],
-        name='extremes')
+    plt.figure()
+    distances = []
+    overlap = []
+    for (i0, n0), (i1, n1) in it.combinations(enumerate(g), 2):
+        x0, y0 = xy[i0]
+        x1, y1 = xy[i1]
+        distances.append(((x0-x1)**2 + (y0-y1)**2)**0.5)
+        overlap.append(distance(meaning_maps[n0], meaning_maps[n1]))
 
-square = to_nearly_square_array_factory(len(meaning_maps[node]))
-ax = plt.gca()
-for node in g.node:
-    pos = xy[node]
-    xx, yy = ax.transData.transform(pos)
-    xa, ya = plt.gcf().transFigure.inverted().transform((xx, yy))
-    a = plt.axes([xa - 0.02, ya - 0.02, 0.04, 0.04])
-    a.axis('off')
-    a.matshow(square(meaning_maps[node]), cmap=cmap)
-
-# plt.colorbar(nodes)
-plt.show(block=False)
-
-plt.figure()
-distances = []
-overlap = []
-for (i0, n0), (i1, n1) in it.combinations(enumerate(g), 2):
-    x0, y0 = xy[i0]
-    x1, y1 = xy[i1]
-    distances.append(((x0-x1)**2 + (y0-y1)**2)**0.5)
-    overlap.append(distance(meaning_maps[n0], meaning_maps[n1]))
-
-plt.scatter(distances, overlap, alpha=0.3)
-plt.show()
+    plt.scatter(distances, overlap, alpha=0.3)
+    plt.ylim((0, 1))
+    plt.savefig("scatter_{:}.png".format(t_max))
+    plt.show(block=False)
