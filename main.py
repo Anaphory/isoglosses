@@ -9,6 +9,7 @@ import numpy
 import networkx
 import scipy.spatial as spt
 
+import matplotlib
 import matplotlib.pyplot as plt
 
 def is_planar(G):
@@ -255,13 +256,23 @@ g_small = networkx.Graph([
     ("B", "C"), ("B", "D"), ("B", "E"), ("C", "D"), ("D", "E"),
     ("F", "A"), ("F", "B"), ("F", "C")])
 
+chain_length = 6
 g_chain = networkx.Graph([
-    (i, i+1) for i in range(20)
+    (i, i+1) for i in range(chain_length-1)
 ])
+xy_chain = [
+    (numpy.sin(2 * numpy.pi * i / chain_length),
+     numpy.cos(2 * numpy.pi * i / chain_length))
+    for i, n in enumerate(g_chain.nodes)]
+
+
+# g = g_chain
+# xy = xy_chain
+
 try:
     g
 except:
-    g, xy = delaunay_graph(20)
+    g, xy = delaunay_graph(50)
     plt.axis('equal')
     networkx.draw_networkx(g, pos=xy, with_labels=True, node_color="y")
     plt.show(block=False)
@@ -294,21 +305,41 @@ def sort_centrality(graph):
     return sorted(nodes, key=distances.get)
 
 
+def distance(language0, language1):
+    return (numpy.array(language0) == numpy.array(language1)).sum()/len(language0)
+
+
 plt.figure()
 labels = networkx.draw_networkx_labels(g, pos=xy, with_labels=True, cmap=plt.get_cmap('jet'))
 
 # Simulate meanings
 
 meaning_maps = {node: [] for node in g.node}
-for meaning in range(1, 6**2+1):
-    meanings, history = single_meaning_simulation(g, meaning_rate=1/meaning)
+for meaning in sorted(numpy.random.gamma(1, 1, size=64)):
+    meanings, history = single_meaning_simulation(g, meaning_rate=meaning, t_max=50)
     display_history(history, g, node_order=sort_centrality(g))
     isoglosses = sorted(set(meanings.values()))
     for node in g.node:
         meaning_maps[node].append(isoglosses.index(meanings[node]))
 
 # Draw edges proportional to overlap
-edges = networkx.draw_networkx_edges(g, pos=xy, with_labels=True, cmap=plt.get_cmap('jet'))
+if g == g_chain:
+    for n0, n1 in it.combinations(g, 2):
+        g.add_edge(n0, n1)
+edge_widths = [5*distance(meaning_maps[node0], meaning_maps[node1])
+               for node0, node1 in g.edges]
+edges = networkx.draw_networkx_edges(g, pos=xy, with_labels=True,
+                                     width=edge_widths)
+
+cmap = matplotlib.colors.ListedColormap(
+        [(0, 0, 0.6),
+         (0, 0, 0),
+         (0, 0, 0),
+         (0.5, 0.5, 0.5),
+         (1, 1, 1,),
+         (1, 1, 1,),
+         (1, 1, 0.5)],
+        name='extremes')
 
 square = to_nearly_square_array_factory(len(meaning_maps[node]))
 ax = plt.gca()
@@ -318,7 +349,19 @@ for node in g.node:
     xa, ya = plt.gcf().transFigure.inverted().transform((xx, yy))
     a = plt.axes([xa - 0.02, ya - 0.02, 0.04, 0.04])
     a.axis('off')
-    a.matshow(square(meaning_maps[node]), cmap=plt.get_cmap('tab20'))
+    a.matshow(square(meaning_maps[node]), cmap=cmap)
 
 # plt.colorbar(nodes)
 plt.show(block=False)
+
+plt.figure()
+distances = []
+overlap = []
+for (i0, n0), (i1, n1) in it.combinations(enumerate(g), 2):
+    x0, y0 = xy[i0]
+    x1, y1 = xy[i1]
+    distances.append(((x0-x1)**2 + (y0-y1)**2)**0.5)
+    overlap.append(distance(meaning_maps[n0], meaning_maps[n1]))
+
+plt.scatter(distances, overlap, alpha=0.3)
+plt.show()
